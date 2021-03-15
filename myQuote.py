@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    myQuote - 股票行情 实时行情(sina, tencent) 历史行情(tushare)
+    myquote - 股票行情 实时行情(sina, tencent) 历史行情(tushare)
     2021/3/12
     usage:
         from myquote import myquote
