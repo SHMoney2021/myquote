@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-    myQuote - 实时行情api
+    myQuote - 股票行情 实时行情(sina, tencent) 历史行情(tushare)
     2021/3/12
     usage:
+        from myquote import myquote
+        
         # 实时行情 默认sina，返回dataframe
         print(myquote.stock_now('000958'))
         print(myquote.stock_now(['601012', '000958']))
@@ -13,6 +15,9 @@
         print(myquote.stock_days('000958'))
         TODAY = datetime.now().strftime('%Y%mm%dd')
         print(myquote.stock_days('601012', start_date='20210101', end_date=TODAY))
+
+        # 使用tushare行情需要在class TushareQuote()配置自己的token，参考tushare文档
+        # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
 """
 import re
 import requests
@@ -27,16 +32,18 @@ from datetime import datetime
 # pd.set_option('display.max_rows', None)
 
 
-# 抽象基类
+# 实时行情抽象基类
 class BaseQuote(metaclass=abc.ABCMeta):
     quote_session = requests.session()
 
     @abc.abstractmethod
     def stock_api(self, stock_list):
+        # 子类实现
         pass
 
     @abc.abstractmethod
     def format_response_data(self, res_data):
+        # 子类实现
         pass
 
     @staticmethod
@@ -70,7 +77,7 @@ class BaseQuote(metaclass=abc.ABCMeta):
         stock_data = self.quote_session.get(stock_url, headers=self.quote_headers())
         return self.format_response_data([stock_data.text])
 
-    def stocks(self, stock_codes) -> list:
+    def stocks(self, stock_codes):
         if not isinstance(stock_codes, list):
             stock_codes = [stock_codes]
 
@@ -78,7 +85,7 @@ class BaseQuote(metaclass=abc.ABCMeta):
         return self.get_stock_data(stock_list)
 
 
-# quote_use('sina')
+# 实时行情 sina API实现
 class SinaQuote(BaseQuote):
     sina_data_format = ['code', 'name', 'open', 'pre_close', 'now', 'high', 'low', 'buy', 'sell', 'vol', 'amount',
                         'bid1_volume', 'bid1', 'bid2_volume', 'bid2', 'bid3_volume', 'bid3', 'bid4_volume', 'bid4',
@@ -112,7 +119,7 @@ class SinaQuote(BaseQuote):
         return df
 
 
-# quote_use('qq' or 'tencent')
+# 实时行情 tencent API实现
 class TencentQuote(BaseQuote):
     tencent_data_format = ['name', 'code', 'now', 'pre_close', 'open', 'volume', 'bid_volume', 'ask_volume', 'bid1',
                            'bid1_volume', 'bid2', 'bid2_volume', 'bid3', 'bid3_volume', 'bid4', 'bid4_volume', 'bid5',
@@ -148,9 +155,10 @@ class TencentQuote(BaseQuote):
         return df
 
 
-# quote_use('ts' or 'tushare')
+# 历史行情 tushare API实现
 class TushareQuote():
-    # TS_TOKEN = 'your-tushare-token'
+    # 第一次使用需要配置token
+    # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
     # pro = ts.pro_api(TS_TOKEN)
 
     pro = ts.pro_api()
@@ -182,12 +190,15 @@ class FakerQuote():
         pass
 
 
-# myquote api
+# 行情查询API
+# stock_now(股票代码， 行情源默认sina): 单只或多只股票实时行情
+# stock_days(股票代码， 开始日期， 结束日期): 单只股票历史行情
 class myQuote():
     sina_quote = SinaQuote()
     tencent_quote = TencentQuote()
     tushare_quote = TushareQuote()
 
+    # 单只或多只股票实时行情
     def stock_now(self, stock_codes, source='sina'):
         if source in ['tencent', 'qq']:
             data = self.tencent_quote.stocks(stock_codes)
@@ -196,6 +207,7 @@ class myQuote():
 
         return data
 
+    # 单只股票历史行情
     def stock_days(self, stock_code, start_date='20210101',
                    end_date=datetime.now().strftime('%Y%mm%dd')):
         data = self.tushare_quote.stock(stock_code, start_date, end_date)
@@ -203,6 +215,8 @@ class myQuote():
         return data
 
 
+# 行情查询API
+# from myquote import myquote
 myquote = myQuote()
 
 # test usage
