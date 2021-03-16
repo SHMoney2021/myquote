@@ -110,7 +110,7 @@ class SinaQuote(BaseQuote):
 
         # to dataframe
         df = pd.DataFrame(columns=self.sina_data_select)
-        for d in reversed(result_list):
+        for d in result_list:
             _data = dict(zip(self.sina_data_select, [d.get(x) for x in self.sina_data_select]))
             df = df.append(_data, ignore_index=True)
 
@@ -146,7 +146,7 @@ class TencentQuote(BaseQuote):
 
         # to dataframe
         df = pd.DataFrame(columns=self.tencent_data_select)
-        for d in reversed(result_list):
+        for d in result_list:
             _data = dict(zip(self.tencent_data_select, [d.get(x) for x in self.tencent_data_select]))
             df = df.append(_data, ignore_index=True)
 
