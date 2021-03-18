@@ -116,6 +116,9 @@ class SinaQuote(BaseQuote):
 
         df.index = df.code
         df.drop("code", inplace=True, axis=1)
+        for i in range(1, 8):
+            df.iloc[:, i] = df.iloc[:, i].astype(float)
+            
         return df
 
 
@@ -152,6 +155,9 @@ class TencentQuote(BaseQuote):
 
         df.index = df.code
         df.drop("code", inplace=True, axis=1)
+        for i in range(1, 8):
+            df.iloc[:, i] = df.iloc[:, i].astype(float)
+            
         return df
 
 
