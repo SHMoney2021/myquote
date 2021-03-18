@@ -118,7 +118,12 @@ class SinaQuote(BaseQuote):
         df.drop("code", inplace=True, axis=1)
         for i in range(1, 8):
             df.iloc[:, i] = df.iloc[:, i].astype(float)
-            
+        
+        df.date = df.date + df.time
+        df.date = df.date.str.replace('[-:]', '')
+        df.rename(columns={'date': 'datetime'}, inplace=True)
+        df.drop("time", inplace=True, axis=1)
+        
         return df
 
 
