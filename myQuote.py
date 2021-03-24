@@ -220,7 +220,7 @@ class myQuote():
 
     # 单只股票历史行情
     def stock_days(self, stock_code, start_date='20210101',
-                   end_date=datetime.now().strftime('%Y%mm%dd')):
+                   end_date=datetime.now().strftime('%Y%m%d')):
         data = self.tushare_quote.stock(stock_code, start_date, end_date)
 
         return data
@@ -228,7 +228,7 @@ class myQuote():
 
 # 行情查询API
 # from myquote import myquote
-myquote = myQuote()
+myquote = myQuoteApi()
 
 # test usage
 if __name__ == '__main__':
