@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-    myquote - 股票行情 实时行情(sina, tencent) 历史行情(tushare)
+    myquote - 股票行情 实时行情(sina, tencent) 历史行情(tushare, goldminer)
     2021/3/12
     usage:
         from myquote import myquote
@@ -8,16 +8,26 @@
         # 实时行情 默认sina，返回dataframe
         print(myquote.stock_now('000958'))
         print(myquote.stock_now(['601012', '000958']))
+
         # 实时行情 tencent/qq, 返回dataframe
         print(myquote.stock_now('000958', 'qq'))
         print(myquote.stock_now(['601012', '000958'], 'qq'))
+
         # 历史行情 tushare, 返回dataframe
         print(myquote.stock_days('000958'))
         TODAY = datetime.now().strftime('%Y%mm%dd')
         print(myquote.stock_days('601012', start_date='20210101', end_date=TODAY))
 
+        # Goldminer掘金量化行情
+        #查询当前行情快照 返回tick dataframe数据
+        print(myquote.stock_current('000958'))
+        # 查询历史行情, 返回dataframe数据 默认前复权 默认日线数据
+        print(myquote.stock_history('000958', start_date='20210101', end_date='20210324'))
+
         # 使用tushare行情需要在class TushareQuote()配置自己的token，参考tushare文档
         # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
+
+        # 使用掘金量化行情需要在 class GmQuote()设置token set_token('YOUR-GM-TOKEN')
 """
 import re
 import requests
@@ -192,6 +202,49 @@ class TushareQuote():
         return stock_code[-6:] + ends
 
 
+# Goldminer(掘金量化)行情
+class GmQuote():
+    def __init__(self):
+        # 设置token， 查看已有token ID,在用户-秘钥管理里获取
+        set_token('YOUR-GM-TOKEN')
+
+    # current - 查询当前行情快照 返回tick数据
+    # symbol,open,high,low,price,quotes,cum_volume,cum_amount,last_amount,last_volume,trade_type,created_at
+    def current(self, stock_code):
+        stock_code = self.check_stock_code(stock_code)
+        data = current(symbols=stock_code)
+        data = pd.DataFrame(data)
+        data = data.round({'open': 2, 'high': 2, 'low': 2, 'price': 2})
+        return data
+
+    # 查询历史行情，默认前复权，默认日线数据frequency='1d'
+    # symbol,frequency,open,high,low,close,volume,amount,pre_close,bob,eob,position
+    def history(self, stock_code, start_date, end_date):
+        stock_code = self.check_stock_code(stock_code)
+        start_date = self.check_datetime(start_date)
+        end_date = self.check_datetime(end_date)
+        # 采用定点复权的方式， adjust指定前复权，adjust_end_time指定复权时间点
+        data = history(symbol=stock_code, frequency='1d', start_time=start_date + ' 09:00:00',
+                       end_time=end_date + ' 16:00:00',
+                       adjust=ADJUST_PREV, adjust_end_time=end_date, df=True)
+        data = data.round({'open': 2, 'high': 2, 'low': 2, 'close': 2, 'pre_close': 2})
+        return data
+
+    @staticmethod
+    def check_stock_code(stock_code):
+        assert type(stock_code) is str, "stock code need str type"
+        sh_head = ("50", "51", "60", "90", "110", "113",
+                   "132", "204", "5", "6", "9", "7")
+        starts = 'SHSE.' if stock_code[-6:].startswith(sh_head) else 'SZSE.'
+        return starts + stock_code[-6:]
+
+    @staticmethod
+    def check_datetime(date):
+        assert (type(date) is str) and (len(date) == 8), "date need str type like: '20210101'"
+        date = '-'.join([date[:4], date[4:6], date[-2:]])
+        return date
+
+
 # fake quote for test
 class FakerQuote():
     def stock_now(self, stock_codes):
@@ -204,10 +257,13 @@ class FakerQuote():
 # 行情查询API
 # stock_now(股票代码， 行情源默认sina): 单只或多只股票实时行情
 # stock_days(股票代码， 开始日期， 结束日期): 单只股票历史行情
-class myQuote():
-    sina_quote = SinaQuote()
-    tencent_quote = TencentQuote()
-    tushare_quote = TushareQuote()
+class myQuoteApi():
+
+    def __init__(self):
+        self.sina_quote = SinaQuote()  #sina实时行情
+        self.tencent_quote = TencentQuote()  #tencent实时行情
+        self.tushare_quote = TushareQuote()  #tushare历史行情
+        self.gm_quote = GmQuote()  #goldminer current/history行情
 
     # 单只或多只股票实时行情
     def stock_now(self, stock_codes, source='sina'):
@@ -218,13 +274,23 @@ class myQuote():
 
         return data
 
-    # 单只股票历史行情
+    # 单只股票历史行情 tushare
     def stock_days(self, stock_code, start_date='20210101',
                    end_date=datetime.now().strftime('%Y%m%d')):
         data = self.tushare_quote.stock(stock_code, start_date, end_date)
 
         return data
 
+    # 查询当前行情快照 返回tick数据 Goldminer行情
+    def stock_current(self, stock_code):
+        data = self.gm_quote.current(stock_code)
+        return data
+
+    # 查询历史行情，返回dataframe数据 Goldminer行情
+    def stock_history(self, stock_code, start_date='20210101',
+                      end_date=datetime.now().strftime('%Y%m%d')):
+        data = self.gm_quote.history(stock_code, start_date, end_date)
+        return data
 
 # 行情查询API
 # from myquote import myquote
@@ -239,7 +305,9 @@ if __name__ == '__main__':
     print(myquote.stock_now(['601012', '000958'], 'qq'))
 
     print(myquote.stock_days('000958'))
-    TODAY = datetime.now().strftime('%Y%mm%dd')
+    TODAY = datetime.now().strftime('%Y%m%d')
     print(myquote.stock_days('601012', start_date='20210101', end_date=TODAY))
-
+	
+	print(myquote.stock_current('000958'))
+    print(myquote.stock_history('000958', start_date='20210101', end_date=TODAY))
 
