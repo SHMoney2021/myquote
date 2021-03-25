@@ -1,7 +1,7 @@
 # myquote
 
 #### 介绍
-股票实时行情（sina, tencent）、历史行情（tushare）
+股票实时行情（sina, tencent）、历史行情（tushare）、掘金Goldminer行情
 
 #### 使用说明
 
@@ -20,10 +20,13 @@
         TODAY = datetime.now().strftime('%Y%mm%dd')
         print(myquote.stock_days('601012', start_date='20210101', end_date=TODAY))
 
-#### 参与贡献
+        # Goldminer掘金量化行情
+        #查询当前行情快照 返回tick dataframe数据
+        print(myquote.stock_current('000958'))
+        # 查询历史行情, 返回dataframe数据 默认前复权 默认日线数据
+        print(myquote.stock_history('000958', start_date='20210101', end_date='20210324'))
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+        # 使用tushare行情需要在class TushareQuote()配置自己的token，参考tushare文档
+        # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
 
+        # 使用掘金量化行情需要在 class GmQuote()设置token set_token('YOUR-GM-TOKEN')
