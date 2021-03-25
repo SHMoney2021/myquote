@@ -233,8 +233,8 @@ class GmQuote():
     @staticmethod
     def check_stock_code(stock_code):
         assert type(stock_code) is str, "stock code need str type"
-        sh_head = ("50", "51", "60", "90", "110", "113",
-                   "132", "204", "5", "6", "9", "7")
+        sh_head = ('6', '9')
+        # sz_head = ('3', '2', '0')
         starts = 'SHSE.' if stock_code[-6:].startswith(sh_head) else 'SZSE.'
         return starts + stock_code[-6:]
 
