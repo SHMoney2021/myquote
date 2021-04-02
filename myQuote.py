@@ -26,8 +26,25 @@
 
         # 使用tushare行情需要在class TushareQuote()配置自己的token，参考tushare文档
         # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
-
         # 使用掘金量化行情需要在 class GmQuote()设置token set_token('YOUR-GM-TOKEN')
+
+        # 支持策略回测 将行情bar数据序列化输出给策略函数 策略函数执行策略
+        quote = myquote.stock_history('000958', start_date='20210101', end_date=TODAY)
+        backtest_account = myquote.backtest_account()
+        # 执行回测
+        myquote.stock_backtest_serial(quote, 11, strategy_demo, backtest_account)
+        def strategy_demo(data, account):
+            # 实现你的策略
+        # 查询策略收益
+        backtest_account.status()
+        # 输出：
+        --- backtest strategy: strategy_demo ---
+        总买入额: 826.00
+        总卖出额: 404.00
+        持仓市值: 505.00
+        买卖盈亏: 10.05%
+        [['20210201', 'buy', 4.1, 100], ['20210202', 'sell', 4.04, 100], ['20210219', 'buy', 4.16, 100]]
+
 """
 import re
 import requests
@@ -35,6 +52,7 @@ import abc
 import tushare as ts
 import pandas as pd
 from datetime import datetime
+from gm.api import *
 
 
 # 控制台全部打印
@@ -128,12 +146,12 @@ class SinaQuote(BaseQuote):
         df.drop("code", inplace=True, axis=1)
         for i in range(1, 8):
             df.iloc[:, i] = df.iloc[:, i].astype(float)
-        
+
         df.date = df.date + df.time
         df.date = df.date.str.replace('[-:]', '')
         df.rename(columns={'date': 'datetime'}, inplace=True)
         df.drop("time", inplace=True, axis=1)
-        
+
         return df
 
 
@@ -172,7 +190,7 @@ class TencentQuote(BaseQuote):
         df.drop("code", inplace=True, axis=1)
         for i in range(1, 8):
             df.iloc[:, i] = df.iloc[:, i].astype(float)
-            
+
         return df
 
 
@@ -227,7 +245,12 @@ class GmQuote():
         data = history(symbol=stock_code, frequency='1d', start_time=start_date + ' 09:00:00',
                        end_time=end_date + ' 16:00:00',
                        adjust=ADJUST_PREV, adjust_end_time=end_date, df=True)
+
         data = data.round({'open': 2, 'high': 2, 'low': 2, 'close': 2, 'pre_close': 2})
+        data['datetime'] = data['eob'].apply(lambda x: x.strftime('%Y%m%d'))
+        data.index = data['datetime']
+        data.drop("datetime", inplace=True, axis=1)
+
         return data
 
     @staticmethod
@@ -254,16 +277,66 @@ class FakerQuote():
         pass
 
 
+# 模拟账户
+class SimAccount():
+    def __init__(self, initial_cash):
+        # 初始资金
+        self.initial_cash = float(initial_cash)
+        # 买入额
+        self.buy_amount = float(0)
+        # 卖出额
+        self.sell_amount = float(0)
+        # 持仓量
+        self.position = 0
+        # 持仓价格
+        self.position_price = float(0)
+        # 账户盈亏 （账户盈亏 = 卖出额 + 持仓市值 - 买入额）
+        self.profit = float(0)
+        # 账户交易记录
+        self.order_records = []
+
+    def buy(self, date, price, volume):
+        self.position += volume
+        self.buy_amount += price * volume
+        self.order_records.append([date, 'buy', price, volume])
+
+    def sell(self, date, price, volume):
+        if self.position < volume:
+            return
+        self.position -= volume
+        self.sell_amount += price * volume
+        self.order_records.append([date, 'sell', price, volume])
+
+    def sell_all(self, date, price):
+        if self.position <= 0:
+            return
+        self.sell_amount += price * self.position
+        self.order_records.append([date, 'sell', price, self.position])
+        self.position = 0
+
+    def update_price(self, price):
+        self.position_price = price
+
+    def status(self):
+        self.profit = self.sell_amount + self.position * self.position_price - self.buy_amount
+        print('总买入额: %.2f' % self.buy_amount)
+        print('总卖出额: %.2f' % self.sell_amount)
+        print('持仓市值: %.2f' % (self.position * self.position_price))
+        print('买卖盈亏: %.2f%%' % (self.profit / self.buy_amount * 100 if self.buy_amount > 0 else 0))
+        print(self.order_records)
+
+
 # 行情查询API
 # stock_now(股票代码， 行情源默认sina): 单只或多只股票实时行情
 # stock_days(股票代码， 开始日期， 结束日期): 单只股票历史行情
 class myQuoteApi():
 
     def __init__(self):
-        self.sina_quote = SinaQuote()  #sina实时行情
-        self.tencent_quote = TencentQuote()  #tencent实时行情
-        self.tushare_quote = TushareQuote()  #tushare历史行情
-        self.gm_quote = GmQuote()  #goldminer current/history行情
+        self.sina_quote = SinaQuote()  # sina实时行情
+        self.tencent_quote = TencentQuote()  # tencent实时行情
+        self.tushare_quote = TushareQuote()  # tushare历史行情
+        self.gm_quote = GmQuote()  # goldminer current/history行情
+        self.sim_account = SimAccount(1000000)  # 模拟账户
 
     # 单只或多只股票实时行情
     def stock_now(self, stock_codes, source='sina'):
@@ -292,6 +365,25 @@ class myQuoteApi():
         data = self.gm_quote.history(stock_code, start_date, end_date)
         return data
 
+    # 提供回测序列
+    # on_backtest_func: 回测策略处理回调函数
+    # data: 行情序列dataframe数据
+    # account: 模拟账户SimAccount()
+    def stock_backtest_serial(self, data, count, on_backtest_func, account):
+        for data_split in self._split(data, count):
+            on_backtest_func(data_split, account)
+
+    # 日线行情切分为n日序列方便策略函数处理
+    @staticmethod
+    def _split(data, n):
+        for i in range(len(data) - n + 1):
+            yield data.iloc[i:i + n]
+
+    # 模拟账户
+    def backtest_account(self):
+        return self.sim_account
+
+
 # 行情查询API
 # from myquote import myquote
 myquote = myQuoteApi()
@@ -307,7 +399,35 @@ if __name__ == '__main__':
     print(myquote.stock_days('000958'))
     TODAY = datetime.now().strftime('%Y%m%d')
     print(myquote.stock_days('601012', start_date='20210101', end_date=TODAY))
-	
-	print(myquote.stock_current('000958'))
+
+    print(myquote.stock_current('000958'))
     print(myquote.stock_history('000958', start_date='20210101', end_date=TODAY))
 
+    # 回测demo 实现一个简单的双均线策略
+    # 双均线策略demo
+    def strategy_demo(data, account):
+        current_price = data.close.tolist()[-1]
+        current_date = data.index.tolist()[-1]
+
+        prices = data.close
+        short_avg = prices.rolling(5).mean()  # 短均线
+        long_avg = prices.rolling(10).mean()  # 长均线
+
+        # 短均线下穿长均线，卖出(即当前时间点短均线处于长均线下方，前一时间点短均线处于长均线上方)
+        if long_avg[-2] < short_avg[-2] and long_avg[-1] >= short_avg[-1]:
+            account.sell(current_date, current_price, 100)
+
+        # 短均线上穿长均线，买入（即当前时间点短均线处于长均线上方，前一时间点短均线处于长均线下方）
+        if short_avg[-2] < long_avg[-2] and short_avg[-1] >= long_avg[-1]:
+            account.buy(current_date, current_price, 100)
+
+        account.update_price(current_price)
+
+    quote = myquote.stock_history('000958', start_date='20210101', end_date=TODAY)
+    # 创建回测模拟账户
+    backtest_account = myquote.backtest_account()
+    # 执行回测
+    myquote.stock_backtest_serial(quote, 11, strategy_demo, backtest_account)
+    # 显示回测账户收益
+    print('--- backtest strategy: %s ---' % 'strategy_demo')
+    backtest_account.status()

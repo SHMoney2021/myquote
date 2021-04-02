@@ -28,5 +28,22 @@
 
         # 使用tushare行情需要在class TushareQuote()配置自己的token，参考tushare文档
         # TS_TOKEN = 'YOUR-TUSHARE-TOKEN'
-
         # 使用掘金量化行情需要在 class GmQuote()设置token set_token('YOUR-GM-TOKEN')
+
+        # 支持策略回测 将行情bar数据序列化输出给策略函数 策略函数执行策略
+        quote = myquote.stock_history('000958', start_date='20210101', end_date=TODAY)
+        backtest_account = myquote.backtest_account()
+        # 执行回测
+        myquote.stock_backtest_serial(quote, 11, strategy_demo, backtest_account)
+        def strategy_demo(data, account):
+            # 实现你的策略
+
+        # 查询策略收益
+        backtest_account.status()
+        # 输出：
+        --- backtest strategy: strategy_demo ---
+        总买入额: 826.00
+        总卖出额: 404.00
+        持仓市值: 505.00
+        买卖盈亏: 10.05%
+        [['20210201', 'buy', 4.1, 100], ['20210202', 'sell', 4.04, 100], ['20210219', 'buy', 4.16, 100]]
